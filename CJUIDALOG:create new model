@@ -1,0 +1,117 @@
+/*El proceso es el siguiente, tenemso un formulario para crear un piano , en donde tenemos un desplegable 
+para seleccionar la marca (que es otro modelo), y queremos añadir un link en donde podamos crear una nueva marca si la nuestra 
+no está en el desplegable*/
+
+	<?php echo $form->dropDownList($model,'marca',Marca::items()); ?>
+  		<?php echo CHtml::link(Yii::t('piano','Add a new style'), "", // the link for open the dialog
+    array(
+    'id'=>'nuevamarca',
+  'value'=>'add()',
+        'onClick'=>"{js:add();$('#dialog').dialog('open');}",
+         ));?>
+    
+<?php
+$this->beginWidget('zii.widgets.jui.CJuiDialog', array( // the dialog
+    'id'=>'dialog',
+    'options'=>array(
+        'title'=>Yii::t('piano','Add a new style'),
+        'autoOpen'=>false,
+        'modal'=>true,
+        'width'=>550,
+        'height'=>470,
+
+    ),
+    
+));?>
+<div class="divForForm"></div>
+ 
+<?php $this->endWidget('zii.widgets.jui.CJuiDialog');?>
+      
+  //En el link le decimos que cuando le de click valla a la función addClassroom y con el resultado abra el CJUIDIALOG
+  /*En la función addClassroom tenemos una llamada asíncrona a la acción create de MarcaController, renderizandose
+  la vista asociada a la creación de una nueva marca
+  Recogemos los datos del formulario junto con el csrf_token en data y enviamos el formulario con un ajaxSubmitButton
+  y luego cerramos el cjuidialog*/
+   <div class="small-6 small-centered columns">
+       <?php echo CHtml::ajaxSubmitButton(Yii::t('piano','Create' ), '',
+       
+       array(
+ 			'data'=> array('YII_CSRF_TOKEN' => Yii::app()->request->csrfToken),       
+       'success'=>"function(data) {
+            $('#dialog').dialog('close')return false;!!!!!!!!!!!!!!!!!!!!!!!!!!AQUI ESTABA EL FALLO NAL PARECER, TENIA QUE
+            }"                                        PONER RETURN FALSE PARA QUE NO CERRARA DIRECTAMENTE EL CJUIDIALOG
+           ),                                         Y VOLVIERA LA FUNCION AJAX, PERO ES QUE NO ESTA MAL LA SINTAXIS, 
+                                                      PORQUE PROBE A PONER $('#dialog').dialog('close');return false;
+                                                      Y ASI NO IBA... NO ME TIENE MUCHO SENTIDO....
+           array('id'=> 'createmarca'));?>
+  
+	</div>  </div>
+  <script type="text/javascript">
+// here is the magic
+function add()
+{
+    <?php echo CHtml::ajax(array(
+            'url'=>array('marca/create'),
+            'data'=> array("js:$(this).serialize()",'YII_CSRF_TOKEN' => Yii::app()->request->csrfToken),
+				'async'=>true,	            
+            'type'=>'post',
+            'dataType'=>'json',
+            'success'=>"js:function(data)
+            {
+                if (data.status == 'failure')
+                {
+                    $('#dialog div.divForForm').html(data.div);
+                          // Here is the trick: on submit-> once again this function!
+                    $('#dialog div.divForForm form').submit(addClassroom);
+                }
+                else
+                {
+                    $('#dialog div.divForForm').html(data.div);
+                    setTimeout(\"$('#dialog').dialog('close') \",3000);
+                }
+ 
+            } ",
+            ))?>;
+    return false; 
+ }
+ </script>
+ 
+ /*
+ *En la accion crear marca inicialmente renderiza la vista del formulario , con los dos ultimos parametros a true,
+ el primero indica que tiene que devolvernos la vista no mostrarla, es decir obtenemos la vista como dato para el ajax del dialog
+ y como status es false nos renderiza la vista dentro del div que ponemos en el widget (<divFormForm>)
+ , pa y el segundo indica que el resultado hay que procesarlo
+ /*una vez enviada la nueva marca se guarda y como es ajax cerramos y volvemos a donde nos llamaron que es
+ en el dialog y como status es true cierra el dialog
+ public function actionCreate()
+	{
+		$model=new Marca;
+		if(isset($_POST['Marca']))
+		{
+			$model->attributes=$_POST['Marca'];
+			if($model->save()){
+				if (Yii::app()->request->isAjaxRequest)
+                {
+              			echo CJSON::encode(array(
+                        'status'=>'success', 
+                        'div'=>"Marca successfully added"
+                        ));
+                    exit;  
+           }
+			else{		
+			$this->redirect(Yii::app()->request->getUrlReferrer());
+			}
+		}
+		}
+		if (Yii::app()->request->isAjaxRequest)
+        {
+       
+            echo CJSON::encode(array(
+                'status'=>'failure', 
+                'div'=>$this->renderPartial('_form', array('model'=>$model), true,true)));
+            exit;               
+        }
+        else
+            $this->render('create',array('model'=>$model));
+    		}
+		
